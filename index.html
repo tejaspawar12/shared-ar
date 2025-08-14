@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Shared AR Pins (Hiro/Kanji)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <style>
+    html,body{margin:0;height:100vh;background:#000;overflow:hidden;font-family:system-ui,-apple-system,BlinkMacSystemFont,sans-serif}
+    #scan{position:fixed;top:8px;left:8px;z-index:20;background:rgba(0,0,0,.75);color:#fff;padding:8px 12px;border-radius:12px;font-size:13px}
+    #net{position:fixed;top:8px;right:8px;z-index:20;background:rgba(0,0,0,.6);color:#fff;padding:6px 10px;border-radius:10px;font-size:12px}
+    #ui{position:fixed;left:0;right:0;bottom:0;z-index:20;background:rgba(0,0,0,.6);color:#fff;padding:10px 10px calc(12px + env(safe-area-inset-bottom));display:none}
+    #ui form{display:grid;grid-template-columns:1fr minmax(70px,110px) auto;gap:8px;align-items:end}
+    #ui input{height:36px;border-radius:10px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.1);color:#fff;padding:6px 10px}
+    #ui button{height:36px;border:none;border-radius:10px;background:#4ad;color:#002;font-weight:800;padding:0 16px}
+    #start{position:fixed;left:12px;right:12px;bottom:12px;z-index:30;height:48px;border:none;border-radius:12px;background:#4ad;color:#002;font-weight:800;font-size:16px;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+    video,#arjs-video,video#arjs-video{position:fixed!important;top:0!important;left:0!important;width:100vw!important;height:100vh!important;object-fit:cover!important;z-index:0!important;background:#000!important}
+    canvas.a-canvas{position:fixed!important;top:0!important;left:0!important;z-index:1!important;background:transparent!important}
+    .a-enter-vr-button,.a-enter-ar-button,.a-orientation-modal{display:none!important}
+  </style>
+
+  <!-- A-Frame + AR.js -->
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.3/aframe/build/aframe-ar.js"></script>
+
+  <!-- Preload Firebase modules (faster first import) -->
+  <script type="module">
+    import "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
+    import "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+  </script>
+</head>
+<body>
+  <div id="scan">Tap “Start AR” to begin</div>
+  <div id="net">🟢 online</div>
+  <button id="start">Start AR</button>
+
+  <a-scene id="scene" style="display:none"
+           embedded vr-mode-ui="enabled:false"
+           renderer="alpha:true; antialias:true; physicallyCorrectLights:true">
+    <a-entity light="type:ambient; intensity:0.8"></a-entity>
+    <a-entity light="type:directional; intensity:0.9" position="0.5 1 0.5"></a-entity>
+
+    <!-- Hiro -->
+    <a-marker id="marker-hiro" preset="hiro" emitevents="true" smooth="true" smoothCount="10" smoothTolerance="0.01" smoothThreshold="5">
+      <a-plane class="dropzone" width="6" height="6" rotation="-90 0 0" material="opacity:0; transparent:true"></a-plane>
+      <a-box position="0 0.3 0" width="0.6" height="0.6" depth="0.6"
+             material="color:#00ff00; opacity:0.9"
+             animation="property: rotation; to: 0 360 0; loop: true; dur: 2000"></a-box>
+      <a-text value="HIRO detected" position="0 0.8 0" align="center" color="#00ff00" scale="0.4 0.4 0.4"></a-text>
+    </a-marker>
+
+    <!-- Kanji -->
+    <a-marker id="marker-kanji" preset="kanji" emitevents="true" smooth="true" smoothCount="10" smoothTolerance="0.01" smoothThreshold="5">
+      <a-plane class="dropzone" width="6" height="6" rotation="-90 0 0" material="opacity:0; transparent:true"></a-plane>
+      <a-box position="0 0.3 0" width="0.6" height="0.6" depth="0.6"
+             material="color:#ffd166; opacity:0.9"
+             animation="property: rotation; to: 360 0 360; loop: true; dur: 2500"></a-box>
+      <a-text value="KANJI detected" position="0 0.8 0" align="center" color="#ffd166" scale="0.4 0.4 0.4"></a-text>
+    </a-marker>
+
+    <!-- Raycaster -->
+    <a-entity id="mouse" cursor="rayOrigin: mouse" raycaster="objects: .dropzone; interval: 0"></a-entity>
+    <a-entity camera></a-entity>
+  </a-scene>
+
+  <div id="ui">
+    <form id="form">
+      <input id="msg" placeholder="type text…" maxlength="80" />
+      <input id="scale" type="number" step="0.1" value="1.0" inputmode="decimal" />
+      <button type="submit" id="submit">Pin</button>
+    </form>
+  </div>
+
+  <script type="module">
+    /******** DOM ********/
+    const $scan = document.getElementById('scan');
+    const $net  = document.getElementById('net');
+    const $start= document.getElementById('start');
+    const scene = document.getElementById('scene');
+    const mouse = document.getElementById('mouse');
+    const $form = document.getElementById('form');
+    const $msg  = document.getElementById('msg');
+    const $scale= document.getElementById('scale');
+    const $btn  = document.getElementById('submit');
+    const setNet = on => ($net.textContent = on ? '🟢 online' : '🔴 offline');
+    setNet(navigator.onLine); addEventListener('online',()=>setNet(true)); addEventListener('offline',()=>setNet(false));
+    const vibrate = n => { try{ navigator.vibrate && navigator.vibrate(n);}catch{} };
+
+    /******** Start AR ********/
+    const ARJS_ATTR = `
+      sourceType: webcam;
+      videoTexture: false;
+      detectionMode: mono;
+      sourceWidth: 1280;
+      sourceHeight: 720;
+      maxDetectionRate: 60;
+      debugUIEnabled: true
+    `;
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const forceVideoVisible = () => {
+      const vids = document.querySelectorAll('video');
+      vids.forEach(v=>{ v.setAttribute('playsinline','true'); v.setAttribute('webkit-playsinline','true'); v.muted=true; v.style.opacity='1'; });
+    };
+
+    $start.addEventListener('click', async () => {
+      try{
+        $scan.textContent = 'Requesting camera...';
+        const s = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' } });
+        s.getTracks().forEach(t=>t.stop());
+        await new Promise(r=>setTimeout(r,300));
+        scene.setAttribute('arjs', ARJS_ATTR);
+        scene.style.display='block';
+        document.getElementById('ui').style.display='block';
+        $start.style.display='none';
+        $scan.textContent = 'Scanning Hiro/Kanji...';
+        setTimeout(forceVideoVisible,600); if(isIOS){ [1500,3000,5000].forEach(t=>setTimeout(forceVideoVisible,t)); }
+      }catch(e){
+        console.error(e); $scan.textContent='❌ Camera permission needed';
+        alert('Enable camera to use AR.');
+      }
+    });
+
+    /******** Marker events + sanity checks ********/
+    const hiro  = document.getElementById('marker-hiro');
+    const kanji = document.getElementById('marker-kanji');
+    const state = { hiro:false, kanji:false };
+    const updateScan = () => {
+      const seen = Object.entries(state).filter(([,v])=>v).map(([k])=>k).join('/');
+      $scan.textContent = seen ? `✅ Detected: ${seen}` : 'Scanning Hiro/Kanji...';
+    };
+    const onFound = name => { state[name]=true; vibrate(15); updateScan(); };
+    const onLost  = name => { state[name]=false; updateScan(); };
+    hiro.addEventListener('markerFound', ()=>onFound('hiro'));
+    hiro.addEventListener('markerLost',  ()=>onLost('hiro'));
+    kanji.addEventListener('markerFound',()=>onFound('kanji'));
+    kanji.addEventListener('markerLost', ()=>onLost('kanji'));
+
+    /******** Click → choose anchor position ********/
+    const USER_ID = 'user_' + Math.random().toString(36).slice(2,8);
+    let CURRENT = { anchor:null, pos:null };
+
+    const findMarker = el => { let p=el; while(p && p.tagName){ if(p.tagName.toLowerCase()==='a-marker') return p; p=p.parentEl; } return null; };
+    const round2 = n => Math.round(n*100)/100;
+    const norm   = (x,y,z)=>[round2(x),(Math.max(round2(y),0)+0.001),round2(z)];
+
+    const showPreview = (anchor,pos,ok=false) => {
+      const parent = document.getElementById(`marker-${anchor}`); if(!parent) return;
+      let cur = document.getElementById(`cursor-${anchor}`); if(!cur){ cur=document.createElement('a-entity'); cur.id=`cursor-${anchor}`; parent.appendChild(cur); }
+      cur.setAttribute('geometry', ok?'primitive:ring; radiusInner:0.015; radiusOuter:0.025':'primitive:ring; radiusInner:0.012; radiusOuter:0.02');
+      cur.setAttribute('material', ok?'color:#00FF00; opacity:1':'color:#FFD166; opacity:.95');
+      cur.setAttribute('position', `${pos[0]} ${pos[1]} ${pos[2]}`);
+
+      let prev = document.getElementById(`preview-${anchor}`); if(!prev){ prev=document.createElement('a-entity'); prev.id=`preview-${anchor}`; parent.appendChild(prev); }
+      const msg = $msg.value || '';
+      const base = anchor==='hiro' ? '#90EE90' : '#FFD166';
+      const color= ok ? '#00FF00' : base;
+      const sc = parseFloat($scale.value||'1')||1;
+      prev.setAttribute('text', `value:${ok?'✓ ':''}${msg}; align:center; width:1.8; color:${color}; wrapCount:24`);
+      prev.setAttribute('scale', `${sc} ${sc} ${sc}`);
+      prev.setAttribute('position', `${pos[0]} ${pos[1]} ${pos[2]}`);
+    };
+
+    scene.addEventListener('click', ()=>{
+      const rc = mouse.components.raycaster;
+      if(!rc || !rc.intersections?.length) return;
+      const hit = rc.intersections[0];
+      if(!hit.object?.el?.classList?.contains('dropzone')) return;
+
+      const marker = findMarker(hit.object.el); if(!marker) return;
+      if(!marker.object3D?.visible){ $scan.textContent='⚠️ Marker not visible'; setTimeout(updateScan, 1000); return; }
+
+      const anchor = (marker.id==='marker-hiro')?'hiro':'kanji';
+      const local  = marker.object3D.worldToLocal(hit.point.clone());
+      const pos    = norm(local.x, local.y, local.z);
+      CURRENT = { anchor, pos };
+      showPreview(anchor,pos);
+      vibrate(25);
+    });
+
+    /******** Firebase (real-time) ********/
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
+    import { getFirestore, collection, addDoc, onSnapshot, orderBy, query, serverTimestamp }
+      from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+
+    // TODO: replace with your Firebase config
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_DOMAIN",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_BUCKET",
+      messagingSenderId: "YOUR_SENDER",
+      appId: "YOUR_APP_ID"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db  = getFirestore(app);
+    const pins= collection(db, "pins");
+
+    onSnapshot(query(pins, orderBy('ts','asc')), snap=>{
+      snap.docChanges().forEach(ch=>{
+        const d = ch.doc.data();
+        if(d.mode!=='arjs') return;
+        const anchor = (d.anchor==='kanji')?'kanji':'hiro';
+        const parent = document.getElementById(`marker-${anchor}`); if(!parent) return;
+
+        if(ch.type==='removed'){ const old=document.getElementById(`pin-${ch.doc.id}`); if(old) old.remove(); return; }
+        let el = document.getElementById(`pin-${ch.doc.id}`);
+        if(!el){ el=document.createElement('a-entity'); el.id=`pin-${ch.doc.id}`; parent.appendChild(el); }
+        const [x,y,z] = d.pos || [0,0,0];
+        el.setAttribute('position', `${x} ${y} ${z}`);
+
+        if(d.modelUrl){
+          el.removeAttribute('text');
+          const s=d.scale||1; el.setAttribute('gltf-model', d.modelUrl); el.setAttribute('scale', `${s} ${s} ${s}`);
+        }else{
+          const mine = d.userId===USER_ID;
+          const base = anchor==='hiro' ? '#90EE90' : '#FFD166';
+          const color= mine ? base : '#ccc';
+          const s=d.scale||1;
+          el.setAttribute('text', `value:${d.text||''}; align:center; width:1.8; color:${color}; wrapCount:24`);
+          el.setAttribute('scale', `${s} ${s} ${s}`);
+        }
+      });
+    });
+
+    async function savePin({anchor,pos,text,scale}){
+      return await addDoc(pins, { mode:'arjs', anchor, pos, text, scale, userId: USER_ID, ts: serverTimestamp() });
+    }
+
+    $form.addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const msg = ($msg.value||'').trim();
+      const sc  = parseFloat($scale.value||'1')||1;
+      if(!msg) return alert('Enter text');
+      if(!CURRENT.pos) return alert('Click a spot on a marker first');
+      if(!navigator.onLine) return alert('You are offline');
+
+      const {anchor,pos} = CURRENT;
+      try{
+        $btn.disabled = true; showPreview(anchor,pos,true);
+        await savePin({anchor,pos,text:msg,scale:sc});
+        $msg.value=''; vibrate(40);
+        setTimeout(()=>{ ['preview-','cursor-'].forEach(p=>{ const el=document.getElementById(p+anchor); if(el) el.remove(); }); },800);
+        CURRENT = { anchor:null, pos:null };
+        $scan.textContent='Pinned!';
+      }catch(err){
+        console.error(err); $scan.textContent='❌ Submit failed';
+      }finally{
+        setTimeout(()=>{ $btn.disabled=false; updateScan(); },800);
+      }
+    });
+
+    // Foreground return hack (iOS)
+    document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) setTimeout(forceVideoVisible,400); });
+  </script>
+</body>
+</html>
