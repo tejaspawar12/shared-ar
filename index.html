@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <title>Shared AR Text — Marker + Click + Firebase</title>
@@ -12,7 +12,7 @@
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.3/aframe/build/aframe-ar.js"></script>
 
-  <!-- 预加载 Firebase（首帧更稳） -->
+  <!-- Preload Firebase (more stable first frame) -->
   <script type="module">
     import "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
     import "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
@@ -49,7 +49,7 @@
     #ui button{ height:36px; border:none; border-radius:10px; background:#4ad; color:#002; font-weight:700; padding:0 16px; }
     #status{ margin-top:6px; font-size:12px; opacity:.85; }
 
-    /* 视频在底，WebGL 画布在上 */
+    /* Video at bottom, WebGL canvas on top */
     video, #arjs-video, video#arjs-video{
       position:fixed !important; top:0 !important; left:0 !important;
       width:100vw !important; height:100vh !important; object-fit:cover !important;
@@ -68,10 +68,10 @@
   </style>
 </head>
 <body>
-  <div id="scanStatus">👋 点击下方按钮开始 AR</div>
-  <div id="net">🟢 在线</div>
-  <div id="debug">等待启动…</div>
-  <button id="startAR">开始 AR</button>
+  <div id="scanStatus">👋 Tap the button below to start AR</div>
+  <div id="net">🟢 online</div>
+  <div id="debug">Waiting to start…</div>
+  <button id="startAR">Start AR</button>
 
   <a-scene id="scene" style="display:none"
            embedded vr-mode-ui="enabled:false"
@@ -79,11 +79,11 @@
     <a-entity light="type:ambient; intensity:0.8"></a-entity>
     <a-entity light="type:directional; intensity:0.9" position="0.5 1 0.5"></a-entity>
 
-    <!-- Marker：仅用于检测 + 位姿 -->
+    <!-- Marker: used for detection + pose only -->
     <a-marker id="marker-hiro" preset="hiro"
       emitevents="true"
       smooth="true" smoothCount="12" smoothTolerance="0.015" smoothThreshold="8">
-      <!-- 透明拾取面（可选，保留以便你调试） -->
+      <!-- Transparent picking plane (optional, keep for debugging) -->
       <a-plane class="dropzone" width="6" height="6" rotation="-90 0 0"
                material="opacity:0; transparent:true; side:double"></a-plane>
     </a-marker>
@@ -95,7 +95,7 @@
                material="opacity:0; transparent:true; side:double"></a-plane>
     </a-marker>
 
-    <!-- 锚点根：把 pin 和“实时文本”都挂在这里 -->
+    <!-- Anchor roots: attach pins and the “live text” here -->
     <a-entity id="anchor-root-hiro"  visible="false"></a-entity>
     <a-entity id="anchor-root-kanji" visible="false"></a-entity>
 
@@ -105,18 +105,18 @@
   <div id="ui">
     <form id="form">
       <label>Text
-        <input id="msg" placeholder="输入文本…" maxlength="80" />
+        <input id="msg" placeholder="enter text…" maxlength="80" />
       </label>
       <label>Scale
         <input id="scale" type="number" step="0.1" value="1.0" inputmode="decimal" />
       </label>
-      <button type="submit" id="submit">提交 / Pin</button>
+      <button type="submit" id="submit">Submit / Pin</button>
     </form>
-    <div id="status">未选位置（在画面任意处点击可移动实时文本）</div>
+    <div id="status">No position selected (tap anywhere in view to move the live text)</div>
   </div>
 
   <script type="module">
-    /******** DOM & 状态 ********/
+    /******** DOM & status ********/
     const $scan = document.getElementById('scanStatus');
     const $net  = document.getElementById('net');
     const $debug= document.getElementById('debug');
@@ -127,7 +127,7 @@
     const $stat = document.getElementById('status');
     const $btn  = document.getElementById('submit');
     const $start= document.getElementById('startAR');
-    const setNet  = on => $net.textContent = on ? '🟢 在线' : '🔴 离线';
+    const setNet  = on => $net.textContent = on ? '🟢 online' : '🔴 offline';
     const setDebug= txt => $debug.textContent = txt;
     setNet(navigator.onLine); addEventListener('online',()=>setNet(true)); addEventListener('offline',()=>setNet(false));
     const vibrate = (n=10)=>{ try{ navigator.vibrate && navigator.vibrate(n);}catch{} };
@@ -139,7 +139,7 @@
       _scanTimer = setTimeout(()=>{ _scanCache = txt; $scan.className = cls; $scan.textContent = txt; }, 80);
     }
 
-    /******** 启动 AR ********/
+    /******** Start AR ********/
     const ARJS_ATTR = `
       sourceType: webcam;
       videoTexture: false;
@@ -160,7 +160,7 @@
 
     $start.addEventListener('click', async () => {
       try {
-        setScan('📷 正在请求相机权限…');
+        setScan('📷 Requesting camera permission…');
         const s = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' } });
         s.getTracks().forEach(t => t.stop());
         await new Promise(r => setTimeout(r, 250));
@@ -168,25 +168,25 @@
         scene.style.display = 'block';
         $start.style.display = 'none';
         document.getElementById('ui').style.display = 'block';
-        setScan('🔎 正在扫描 Hiro / Kanji…');
+        setScan('🔎 Scanning Hiro / Kanji…');
         setTimeout(forceVideoVisible, 600);
         if (isIOS){ [1500, 3000, 5000].forEach(t=>setTimeout(forceVideoVisible, t)); }
       } catch (e) {
         console.error(e);
-        setScan('❌ 需要摄像头权限才能使用 AR', 'error');
-        alert('需要相机权限才能使用 AR');
+        setScan('❌ Camera permission required for AR', 'error');
+        alert('Camera permission is required to use AR');
       }
     });
 
-    /******** 粘性锚点 + 丢失保活（5s） ********/
-    const HOLD_MS = 5000; // 丢失后保活 5 秒
+    /******** Sticky anchors + hold-on-loss (5s) ********/
+    const HOLD_MS = 5000; // keep visible for 5s after loss
     const anchors = {
       hiro:  { marker: document.getElementById('marker-hiro'),  root: document.getElementById('anchor-root-hiro'),
                detected:false, lastSeen:0, holdUntil:0, consecutiveVisible:0, live:null, lastTransform:null },
       kanji: { marker: document.getElementById('marker-kanji'), root: document.getElementById('anchor-root-kanji'),
                detected:false, lastSeen:0, holdUntil:0, consecutiveVisible:0, live:null, lastTransform:null },
     };
-    let activeAnchor = null; // 当前“实时文本”所属的锚
+    let activeAnchor = null; // which anchor the “live text” currently belongs to
 
     function copyWorldTransform(fromObj3D, toObj3D){
       fromObj3D.updateMatrixWorld(true);
@@ -217,11 +217,11 @@
       if (!A.live){
         const el = document.createElement('a-entity');
         el.id = `liveText-${name}`;
-        el.setAttribute('rotation','-90 0 0'); // 让 A-Frame 文本贴在 XZ 平面
+        el.setAttribute('rotation','-90 0 0'); // make A-Frame text lay on XZ plane
         el.setAttribute('text', `value:Hello AR!; align:center; width:1.8; color:#00FF88; wrapCount:24`);
         el.setAttribute('material','opacity:1; transparent:true');
         el.setAttribute('scale','1 1 1');
-        el.setAttribute('position','0 0.01 0'); // 默认在标记中心
+        el.setAttribute('position','0 0.01 0'); // default at marker center
         A.root.appendChild(el);
         A.live = el;
       }
@@ -275,16 +275,16 @@
         }else{
           A.consecutiveVisible = 0;
           if (now <= A.holdUntil){
-            applyLastTransform(name);            // 保活期间用最后姿态
+            applyLastTransform(name);            // during hold, use last pose
             A.root.setAttribute('visible', true);
           }else if (now - A.lastSeen > HARD_LOST_TIMEOUT){
-            A.root.setAttribute('visible', false); // 超时隐藏
+            A.root.setAttribute('visible', false); // hide after timeout
           }
         }
       });
-      setDebug(`轮询:${pollCount}
-Hiro: ${anchors.hiro.marker.object3D.visible?'✅可见':'❌隐藏'}  保活余:${Math.max(0,anchors.hiro.holdUntil-now)}ms
-Kanji:${anchors.kanji.marker.object3D.visible?'✅可见':'❌隐藏'}  保活余:${Math.max(0,anchors.kanji.holdUntil-now)}ms`);
+      setDebug(`Poll:${pollCount}
+Hiro: ${anchors.hiro.marker.object3D.visible?'✅ visible':'❌ hidden'}  hold left:${Math.max(0,anchors.hiro.holdUntil-now)}ms
+Kanji:${anchors.kanji.marker.object3D.visible?'✅ visible':'❌ hidden'}  hold left:${Math.max(0,anchors.kanji.holdUntil-now)}ms`);
       updateScanStatus();
     }, 120);
 
@@ -295,20 +295,20 @@ Kanji:${anchors.kanji.marker.object3D.visible?'✅可见':'❌隐藏'}  保活�
       }).map(n=>n[0].toUpperCase()+n.slice(1));
       if (names.length>0){
         const holding = ['hiro','kanji'].some(n=>!anchors[n].marker.object3D.visible && Date.now()<=anchors[n].holdUntil);
-        setScan( holding ? `✅ 已稳定识别 ${names.join(' / ')}（保活中）` : `✅ 已稳定识别 ${names.join(' / ')}`, 'success');
+        setScan( holding ? `✅ Stable detection: ${names.join(' / ')} (holding)` : `✅ Stable detection: ${names.join(' / ')}`, 'success');
       }else{
-        setScan('🔎 正在扫描 Hiro / Kanji…');
+        setScan('🔎 Scanning Hiro / Kanji…');
       }
     }
 
-    /******** —— 精确拾取：canvas 坐标 + 真法线平面 —— ********/
-    // 在 WebGL 画布上监听 pointerdown，避免窗口坐标/系统手势干扰
+    /******** Precise picking: canvas coordinates + true normal-plane ********/
+    // Listen on the WebGL canvas (pointerdown) to avoid window coords / system gestures
     function bindCanvasPointer(){
       const canvas = document.querySelector('canvas.a-canvas');
       if (!canvas) return;
       canvas.style.touchAction = 'none';
       canvas.addEventListener('pointerdown', (e)=>{
-        // 忽略底部 UI
+        // ignore bottom UI
         if (e.target.closest && e.target.closest('#ui')) return;
         e.preventDefault();
         handlePointer(e.clientX, e.clientY, canvas);
@@ -316,9 +316,9 @@ Kanji:${anchors.kanji.marker.object3D.visible?'✅可见':'❌隐藏'}  保活�
     }
     scene.addEventListener('loaded', bindCanvasPointer);
 
-    // 从屏幕坐标发射射线，与“锚点的本地 XZ 平面”求交
+    // From screen coords, cast a ray and intersect with the anchor's local XZ plane
     function pickOnAnchorPlaneFromScreen(clientX, clientY, anchorName, canvasEl){
-      const cam = scene.camera; // A-Frame 挂载的 three.js 相机
+      const cam = scene.camera; // three.js camera mounted by A-Frame
       if (!cam) return null;
 
       const root = anchors[anchorName].root.object3D;
@@ -332,7 +332,7 @@ Kanji:${anchors.kanji.marker.object3D.visible?'✅可见':'❌隐藏'}  保活�
         -((clientY - rect.top) / rect.height) * 2 + 1
       );
 
-      // 平面法线 = (worldZ × worldX)；与本地 XZ 面正交
+      // Plane normal = (worldZ × worldX); orthogonal to local XZ
       const p0 = root.localToWorld(new THREE.Vector3(0,0,0));
       const px = root.localToWorld(new THREE.Vector3(1,0,0)).sub(p0);
       const pz = root.localToWorld(new THREE.Vector3(0,0,1)).sub(p0);
@@ -351,17 +351,17 @@ Kanji:${anchors.kanji.marker.object3D.visible?'✅可见':'❌隐藏'}  保活�
     }
 
     function handlePointer(clientX, clientY, canvasEl){
-      // 选择一个“可用”的锚（可见或处于保活期）
+      // choose an available anchor (visible or in holding period)
       const avail = ['hiro','kanji'].filter(n=>{
         const A = anchors[n];
         return A.marker.object3D.visible || Date.now() <= A.holdUntil;
       });
-      if (!avail.length){ setScan('⚠️ 请先把任一 Marker 放入取景框', 'error'); return; }
+      if (!avail.length){ setScan('⚠️ Put any marker inside the camera view first', 'error'); return; }
 
       const name = (activeAnchor && avail.includes(activeAnchor)) ? activeAnchor : avail[0];
       const A = anchors[name];
 
-      // 同步姿态：可见→实时；保活→最后姿态
+      // Sync transform: visible → live; holding → last pose
       if (A.marker.object3D.visible) {
         copyWorldTransform(A.marker.object3D, A.root.object3D);
         saveLastTransform(name);
@@ -377,16 +377,16 @@ Kanji:${anchors.kanji.marker.object3D.visible?'✅可见':'❌隐藏'}  保活�
       A.live.setAttribute('position', `${pos[0]} ${pos[1]} ${pos[2]}`);
       activeAnchor = name;
       CURRENT = { anchor:name, pos };
-      $stat.textContent = `🎯 已定位到：${name.toUpperCase()} (${pos.map(n=>n.toFixed(3)).join(', ')})`;
-      setScan('✅ 文本已移动；可继续输入或 Pin', 'success');
+      $stat.textContent = `🎯 Positioned on: ${name.toUpperCase()} (${pos.map(n=>n.toFixed(3)).join(', ')})`;
+      setScan('✅ Text moved; you can type or Pin', 'success');
       vibrate(12);
     }
 
-    // 文本实时更新
+    // Live text updates
     $msg.addEventListener('input', syncLiveStyle);
     $scale.addEventListener('input', syncLiveStyle);
 
-    /******** Firebase：Pin 才入库（局部坐标保持不变） ********/
+    /******** Firebase: only persist when Pinning (keep local coords) ********/
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
     import { getFirestore, collection, addDoc, onSnapshot, orderBy, query, serverTimestamp }
       from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
@@ -405,7 +405,7 @@ Kanji:${anchors.kanji.marker.object3D.visible?'✅可见':'❌隐藏'}  保活�
     const USER_ID = 'user_' + Math.random().toString(36).slice(2,8);
     let CURRENT = { anchor:null, pos:null };
 
-    // 渲染云端 pin（挂到 anchor-root-* 下，局部坐标不变）
+    // Render cloud pins (attach under anchor-root-*, keep local coords)
     const q = query(pins, orderBy('ts','asc'));
     onSnapshot(q, (snap)=>{
       snap.docChanges().forEach(ch=>{
@@ -446,27 +446,27 @@ Kanji:${anchors.kanji.marker.object3D.visible?'✅可见':'❌隐藏'}  保活�
       const scale = parseFloat($scale.value||'1')||1;
 
       let anchor = (CURRENT.anchor || activeAnchor);
-      if (!anchor){ alert('请先让相机识别任意标记'); return; }
-      const live = anchors[anchor].live; if (!live){ alert('请先让相机识别标记'); return; }
+      if (!anchor){ alert('Please let the camera detect any marker first'); return; }
+      const live = anchors[anchor].live; if (!live){ alert('Please let the camera detect a marker first'); return; }
 
       const p = live.getAttribute('position');
       const pos = [Number(p.x||0), Number(p.y||0), Number(p.z||0)];
 
       try{
         $btn.disabled = true;
-        setScan('⏳ 正在提交…');
+        setScan('⏳ Submitting…');
         await savePin({anchor,pos,text,scale});
-        setScan('✅ 已提交，其他人也能看到','success');
+        setScan('✅ Submitted; others can see it too','success');
         vibrate(30);
       }catch(err){
         console.error(err);
-        setScan('❌ 提交失败','error');
+        setScan('❌ Submit failed','error');
       }finally{
         setTimeout(()=>{ $btn.disabled=false; }, 600);
       }
     });
 
-    // 回前台修复视频可见
+    // Fix visibility when returning to foreground
     document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) setTimeout(forceVideoVisible, 400); });
   </script>
 </body>
